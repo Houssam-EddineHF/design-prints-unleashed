@@ -67,9 +67,20 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
     fabricCanvasRef.current.selection = !isDrawingMode;
   }, [isDrawingMode]);
 
+  // Restore design image when product or color changes
+  useEffect(() => {
+    if (designImage && fabricCanvasRef.current) {
+      // Delay to ensure background is loaded first
+      setTimeout(() => {
+        addDesignImageToCanvas(designImage);
+      }, 100);
+    }
+  }, [product, color]);
+
   // Load product image as background
   const loadProductImage = (canvas: FabricCanvas) => {
     const img = new Image();
+    img.crossOrigin = "Anonymous"; // Add cross-origin attribute to fix CORS issues
     img.src = product.imageUrl;
     img.onload = () => {
       const fabricImage = new FabricImage(img, {
@@ -87,11 +98,6 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
       
       // Apply color filter
       applyColorFilter(canvas);
-      
-      // Add design image if available
-      if (designImage) {
-        addDesignImageToCanvas(designImage);
-      }
     };
   };
 
@@ -99,21 +105,25 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
   const applyColorFilter = (canvas: FabricCanvas) => {
     if (!canvas.backgroundImage) return;
     
-    // In Fabric.js v6, filters are applied differently
-    const bgImage = canvas.backgroundImage as FabricImage;
-    
-    // Create a color overlay effect using a different approach
-    bgImage.filters = [
-      new filters.BlendColor({
-        color: color,
-        mode: 'multiply',
-        alpha: 0.5
-      }),
-    ];
-    
-    // Apply the filters and render
-    bgImage.applyFilters();
-    canvas.renderAll();
+    try {
+      // In Fabric.js v6, filters are applied differently
+      const bgImage = canvas.backgroundImage as FabricImage;
+      
+      // Create a color overlay effect using a different approach
+      bgImage.filters = [
+        new filters.BlendColor({
+          color: color,
+          mode: 'multiply',
+          alpha: 0.5
+        }),
+      ];
+      
+      // Apply the filters and render
+      bgImage.applyFilters();
+      canvas.renderAll();
+    } catch (error) {
+      console.error("Error applying color filter:", error);
+    }
   };
 
   // Add design image to canvas
@@ -131,24 +141,48 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
     
     // Create new design image
     const { x, y, width, height } = product.canvasPosition;
-    const designFabricImage = new FabricImage(img, {
-      left: x,
-      top: y,
-      width: width,
-      height: height,
-      scaleX: 1,
-      scaleY: 1,
-      selectable: true,
-      isDesign: true, // Custom property
-      borderColor: '#2a9d8f',
-      cornerColor: '#2a9d8f',
-      cornerSize: 10,
-      transparentCorners: false,
-    });
     
-    fabricCanvasRef.current.add(designFabricImage);
-    fabricCanvasRef.current.setActiveObject(designFabricImage);
-    fabricCanvasRef.current.renderAll();
+    // Calculate scales to maintain aspect ratio while fitting within the designated area
+    const imgAspectRatio = img.width / img.height;
+    const areaAspectRatio = width / height;
+    
+    let scaleX, scaleY;
+    if (imgAspectRatio > areaAspectRatio) {
+      // Image is wider than the area - fit to width
+      scaleX = width / img.width;
+      scaleY = scaleX; // Keep aspect ratio
+    } else {
+      // Image is taller than the area - fit to height
+      scaleY = height / img.height;
+      scaleX = scaleY; // Keep aspect ratio
+    }
+    
+    // Calculate centered position
+    const scaledWidth = img.width * scaleX;
+    const scaledHeight = img.height * scaleY;
+    const centerX = x + (width - scaledWidth) / 2;
+    const centerY = y + (height - scaledHeight) / 2;
+    
+    try {
+      const designFabricImage = new FabricImage(img, {
+        left: centerX,
+        top: centerY,
+        scaleX: scaleX,
+        scaleY: scaleY,
+        selectable: true,
+        isDesign: true, // Custom property
+        borderColor: '#2a9d8f',
+        cornerColor: '#2a9d8f',
+        cornerSize: 10,
+        transparentCorners: false,
+      });
+      
+      fabricCanvasRef.current.add(designFabricImage);
+      fabricCanvasRef.current.setActiveObject(designFabricImage);
+      fabricCanvasRef.current.renderAll();
+    } catch (error) {
+      console.error("Error adding design image:", error);
+    }
   };
 
   // Clear canvas
@@ -177,6 +211,7 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
       if (!event.target?.result) return;
       
       const img = new Image();
+      img.crossOrigin = "Anonymous"; // Add cross-origin attribute
       img.src = event.target.result as string;
       img.onload = () => {
         setDesignImage(img);
