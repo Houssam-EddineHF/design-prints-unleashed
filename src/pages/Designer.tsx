@@ -18,15 +18,16 @@ export default function Designer() {
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
+  // Réinitialiser la sélection de couleur quand le produit change
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    setSelectedColor(selectedProduct.colors[0]);
+  }, [selectedProduct]);
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      <main className="flex-1 py-32">
+      <main className="flex-1 py-16 md:py-32">
         <div className="container px-4 md:px-6 mx-auto">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl md:text-4xl font-display font-bold tracking-tight mb-8 text-center">
@@ -56,6 +57,7 @@ export default function Designer() {
                   <Canvas 
                     product={selectedProduct}
                     color={selectedColor}
+                    ref={canvasRef}
                   />
                 </div>
               </div>
