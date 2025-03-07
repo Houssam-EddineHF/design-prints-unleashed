@@ -33,11 +33,13 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
       selection: !isDrawingMode,
     });
     
-    // Set up drawing brush
-    fabricCanvas.freeDrawingBrush.color = brushColor;
-    fabricCanvas.freeDrawingBrush.width = brushSize;
-    fabricCanvas.isDrawingMode = isDrawingMode;
+    // Initialize drawing brush (important to wait for initialization)
+    if (fabricCanvas.freeDrawingBrush) {
+      fabricCanvas.freeDrawingBrush.color = brushColor;
+      fabricCanvas.freeDrawingBrush.width = brushSize;
+    }
     
+    fabricCanvas.isDrawingMode = isDrawingMode;
     fabricCanvasRef.current = fabricCanvas;
     
     // Load product image as background
@@ -51,7 +53,7 @@ const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, r
 
   // Update brush properties when they change
   useEffect(() => {
-    if (!fabricCanvasRef.current) return;
+    if (!fabricCanvasRef.current || !fabricCanvasRef.current.freeDrawingBrush) return;
     
     fabricCanvasRef.current.freeDrawingBrush.color = brushColor;
     fabricCanvasRef.current.freeDrawingBrush.width = brushSize;
