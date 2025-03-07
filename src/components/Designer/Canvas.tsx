@@ -76,10 +76,9 @@ export default function Canvas({ product, color }: CanvasProps) {
         evented: false,
       });
       
-      canvas.setBackgroundImage(fabricImage, canvas.renderAll.bind(canvas), {
-        backgroundImageOpacity: 1,
-        backgroundImageStretch: true,
-      });
+      // In Fabric.js v6, setBackgroundImage is replaced with setting backgroundImage directly
+      canvas.backgroundImage = fabricImage;
+      canvas.renderAll();
       
       // Apply color filter
       applyColorFilter(canvas);
@@ -93,17 +92,24 @@ export default function Canvas({ product, color }: CanvasProps) {
 
   // Apply color tint to the product
   const applyColorFilter = (canvas: FabricCanvas) => {
-    const filter = new FabricImage.filters.BlendColor({
-      color: color,
-      mode: 'multiply',
-      alpha: 0.5
-    });
+    if (!canvas.backgroundImage) return;
     
-    if (canvas.backgroundImage && 'filters' in canvas.backgroundImage) {
-      canvas.backgroundImage.filters = [filter];
-      canvas.backgroundImage.applyFilters();
-      canvas.renderAll();
-    }
+    // In Fabric.js v6, filters are applied differently
+    // We'll use a more compatible approach
+    const bgImage = canvas.backgroundImage as FabricImage;
+    
+    // Create a color overlay effect using a different approach
+    bgImage.filters = [
+      new fabric.filters.BlendColor({
+        color: color,
+        mode: 'multiply',
+        alpha: 0.5
+      }),
+    ];
+    
+    // Apply the filters and render
+    bgImage.applyFilters();
+    canvas.renderAll();
   };
 
   // Add design image to canvas
@@ -112,7 +118,9 @@ export default function Canvas({ product, color }: CanvasProps) {
     
     // Remove existing design images
     fabricCanvasRef.current.getObjects().forEach(obj => {
-      if (obj.data && obj.data.isDesign) {
+      // Check if this is a design image using a custom property
+      const objAny = obj as any;
+      if (objAny.isDesign) {
         fabricCanvasRef.current?.remove(obj);
       }
     });
@@ -127,7 +135,7 @@ export default function Canvas({ product, color }: CanvasProps) {
       scaleX: 1,
       scaleY: 1,
       selectable: true,
-      data: { isDesign: true },
+      isDesign: true, // Custom property
       borderColor: '#2a9d8f',
       cornerColor: '#2a9d8f',
       cornerSize: 10,
