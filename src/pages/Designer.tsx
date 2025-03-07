@@ -18,7 +18,7 @@ export default function Designer() {
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Réinitialiser la sélection de couleur quand le produit change
+  // Reset color selection when product changes
   useEffect(() => {
     setSelectedColor(selectedProduct.colors[0]);
   }, [selectedProduct]);

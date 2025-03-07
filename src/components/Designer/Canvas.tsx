@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Product } from '../../data/products';
 import { toast } from 'sonner';
 import { Canvas as FabricCanvas, Image as FabricImage, filters } from 'fabric';
@@ -9,7 +9,7 @@ interface CanvasProps {
   color: string;
 }
 
-export default function Canvas({ product, color }: CanvasProps) {
+const Canvas = forwardRef<HTMLCanvasElement, CanvasProps>(({ product, color }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -17,6 +17,9 @@ export default function Canvas({ product, color }: CanvasProps) {
   const [brushSize, setBrushSize] = useState(5);
   const [designImage, setDesignImage] = useState<HTMLImageElement | null>(null);
   const [isDrawingMode, setIsDrawingMode] = useState(true);
+
+  // Forward the canvas ref to the parent component
+  useImperativeHandle(ref, () => canvasRef.current!);
 
   // Initialize Fabric canvas
   useEffect(() => {
@@ -95,7 +98,6 @@ export default function Canvas({ product, color }: CanvasProps) {
     if (!canvas.backgroundImage) return;
     
     // In Fabric.js v6, filters are applied differently
-    // We'll use a more compatible approach
     const bgImage = canvas.backgroundImage as FabricImage;
     
     // Create a color overlay effect using a different approach
@@ -262,4 +264,8 @@ export default function Canvas({ product, color }: CanvasProps) {
       </div>
     </div>
   );
-}
+});
+
+Canvas.displayName = 'Canvas';
+
+export default Canvas;
