@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Product } from '../../data/products';
 import { toast } from 'sonner';
+import { Canvas as FabricCanvas, Image as FabricImage } from 'fabric';
 
 interface CanvasProps {
   product: Product;
@@ -10,143 +11,151 @@ interface CanvasProps {
 
 export default function Canvas({ product, color }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const [context, setContext] = useState<CanvasRenderingContext2D | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lastPosition, setLastPosition] = useState({ x: 0, y: 0 });
   const [brushColor, setBrushColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(5);
   const [designImage, setDesignImage] = useState<HTMLImageElement | null>(null);
+  const [isDrawingMode, setIsDrawingMode] = useState(true);
 
-  // Initialize canvas
+  // Initialize Fabric canvas
   useEffect(() => {
     if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
     
-    if (ctx) {
-      setContext(ctx);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = brushColor;
-      ctx.lineWidth = brushSize;
-      
-      // Clear canvas and set background
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.01)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    // Create Fabric.js canvas instance
+    const fabricCanvas = new FabricCanvas(canvasRef.current, {
+      width: 600,
+      height: 800,
+      backgroundColor: 'rgba(255, 255, 255, 0.01)',
+      selection: !isDrawingMode,
+    });
+    
+    // Set up drawing brush
+    fabricCanvas.freeDrawingBrush.color = brushColor;
+    fabricCanvas.freeDrawingBrush.width = brushSize;
+    fabricCanvas.isDrawingMode = isDrawingMode;
+    
+    fabricCanvasRef.current = fabricCanvas;
+    
+    // Load product image as background
+    loadProductImage(fabricCanvas);
+    
+    // Clean up
+    return () => {
+      fabricCanvas.dispose();
+    };
+  }, [product, color]);
+
+  // Update brush properties when they change
+  useEffect(() => {
+    if (!fabricCanvasRef.current) return;
+    
+    fabricCanvasRef.current.freeDrawingBrush.color = brushColor;
+    fabricCanvasRef.current.freeDrawingBrush.width = brushSize;
   }, [brushColor, brushSize]);
 
-  // Load product image as background
+  // Update drawing mode
   useEffect(() => {
-    if (!context || !product) return;
+    if (!fabricCanvasRef.current) return;
     
+    fabricCanvasRef.current.isDrawingMode = isDrawingMode;
+    fabricCanvasRef.current.selection = !isDrawingMode;
+  }, [isDrawingMode]);
+
+  // Load product image as background
+  const loadProductImage = (canvas: FabricCanvas) => {
     const img = new Image();
     img.src = product.imageUrl;
     img.onload = () => {
-      if (!canvasRef.current) return;
+      const fabricImage = new FabricImage(img, {
+        left: 0,
+        top: 0,
+        scaleX: canvas.width! / img.width,
+        scaleY: canvas.height! / img.height,
+        selectable: false,
+        evented: false,
+      });
       
-      context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      
-      // Apply color filter for product
-      context.globalCompositeOperation = 'source-over';
-      context.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
-      
-      // Apply product color filter
-      context.globalCompositeOperation = 'multiply';
-      context.fillStyle = color;
-      context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      
-      // Reset composite operation
-      context.globalCompositeOperation = 'source-over';
-      
-      // Draw existing design if any
-      if (designImage) {
-        const { x, y, width, height } = product.canvasPosition;
-        context.drawImage(designImage, x, y, width, height);
-      }
-    };
-  }, [product, color, context, designImage]);
-
-  // Drawing functions
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!context) return;
-    
-    setIsDrawing(true);
-    const pos = getPointerPosition(e);
-    setLastPosition(pos);
-    
-    // Start new path
-    context.beginPath();
-    context.moveTo(pos.x, pos.y);
-  };
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !context) return;
-    
-    const pos = getPointerPosition(e);
-    
-    context.lineTo(pos.x, pos.y);
-    context.stroke();
-    
-    setLastPosition(pos);
-  };
-
-  const stopDrawing = () => {
-    if (!context) return;
-    
-    if (isDrawing) {
-      context.closePath();
-      setIsDrawing(false);
-    }
-  };
-
-  const getPointerPosition = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!canvasContainerRef.current) return { x: 0, y: 0 };
-    
-    const rect = canvasContainerRef.current.getBoundingClientRect();
-    let clientX, clientY;
-    
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
-  };
-
-  const clearCanvas = () => {
-    if (!context || !canvasRef.current) return;
-    
-    context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    
-    // Redraw background
-    const img = new Image();
-    img.src = product.imageUrl;
-    img.onload = () => {
-      if (!canvasRef.current || !context) return;
-      
-      context.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+      canvas.setBackgroundImage(fabricImage, canvas.renderAll.bind(canvas), {
+        backgroundImageOpacity: 1,
+        backgroundImageStretch: true,
+      });
       
       // Apply color filter
-      context.globalCompositeOperation = 'multiply';
-      context.fillStyle = color;
-      context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      applyColorFilter(canvas);
       
-      // Reset composite operation
-      context.globalCompositeOperation = 'source-over';
+      // Add design image if available
+      if (designImage) {
+        addDesignImageToCanvas(designImage);
+      }
     };
+  };
+
+  // Apply color tint to the product
+  const applyColorFilter = (canvas: FabricCanvas) => {
+    const filter = new FabricImage.filters.BlendColor({
+      color: color,
+      mode: 'multiply',
+      alpha: 0.5
+    });
+    
+    if (canvas.backgroundImage && 'filters' in canvas.backgroundImage) {
+      canvas.backgroundImage.filters = [filter];
+      canvas.backgroundImage.applyFilters();
+      canvas.renderAll();
+    }
+  };
+
+  // Add design image to canvas
+  const addDesignImageToCanvas = (img: HTMLImageElement) => {
+    if (!fabricCanvasRef.current) return;
+    
+    // Remove existing design images
+    fabricCanvasRef.current.getObjects().forEach(obj => {
+      if (obj.data && obj.data.isDesign) {
+        fabricCanvasRef.current?.remove(obj);
+      }
+    });
+    
+    // Create new design image
+    const { x, y, width, height } = product.canvasPosition;
+    const designFabricImage = new FabricImage(img, {
+      left: x,
+      top: y,
+      width: width,
+      height: height,
+      scaleX: 1,
+      scaleY: 1,
+      selectable: true,
+      data: { isDesign: true },
+      borderColor: '#2a9d8f',
+      cornerColor: '#2a9d8f',
+      cornerSize: 10,
+      transparentCorners: false,
+    });
+    
+    fabricCanvasRef.current.add(designFabricImage);
+    fabricCanvasRef.current.setActiveObject(designFabricImage);
+    fabricCanvasRef.current.renderAll();
+  };
+
+  // Clear canvas
+  const clearCanvas = () => {
+    if (!fabricCanvasRef.current) return;
+    
+    // Remove all objects
+    fabricCanvasRef.current.getObjects().forEach(obj => {
+      fabricCanvasRef.current?.remove(obj);
+    });
+    
+    // Redraw background
+    loadProductImage(fabricCanvasRef.current);
     
     setDesignImage(null);
     toast.success('Canvas effacé');
   };
 
+  // Upload design
   const uploadDesign = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -159,36 +168,20 @@ export default function Canvas({ product, color }: CanvasProps) {
       img.src = event.target.result as string;
       img.onload = () => {
         setDesignImage(img);
+        addDesignImageToCanvas(img);
         
-        if (context && canvasRef.current) {
-          const { x, y, width, height } = product.canvasPosition;
-          
-          // Clear canvas and redraw product
-          const productImg = new Image();
-          productImg.src = product.imageUrl;
-          productImg.onload = () => {
-            if (!context || !canvasRef.current) return;
-            
-            context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            context.drawImage(productImg, 0, 0, canvasRef.current.width, canvasRef.current.height);
-            
-            // Apply color filter
-            context.globalCompositeOperation = 'multiply';
-            context.fillStyle = color;
-            context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            
-            // Reset composite operation
-            context.globalCompositeOperation = 'source-over';
-            
-            // Draw uploaded design
-            context.drawImage(img, x, y, width, height);
-          };
-        }
+        // Switch to select mode automatically to allow immediate manipulation
+        setIsDrawingMode(false);
       };
     };
     
     reader.readAsDataURL(file);
     toast.success('Design importé');
+  };
+
+  // Toggle drawing/select mode
+  const toggleMode = () => {
+    setIsDrawingMode(!isDrawingMode);
   };
 
   return (
@@ -207,13 +200,6 @@ export default function Canvas({ product, color }: CanvasProps) {
           width={600}
           height={800}
           className="absolute inset-0 w-full h-full"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
         />
       </div>
       
@@ -241,6 +227,13 @@ export default function Canvas({ product, color }: CanvasProps) {
             className="w-24"
           />
         </div>
+        
+        <button 
+          onClick={toggleMode}
+          className={`text-sm px-3 py-1 ${isDrawingMode ? 'bg-primary' : 'bg-secondary'} hover:bg-opacity-80 text-primary-foreground rounded transition-colors`}
+        >
+          {isDrawingMode ? 'Mode Dessin' : 'Mode Sélection'}
+        </button>
         
         <button 
           onClick={clearCanvas}
