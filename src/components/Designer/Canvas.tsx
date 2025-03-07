@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Product } from '../../data/products';
 import { toast } from 'sonner';
-import { Canvas as FabricCanvas, Image as FabricImage } from 'fabric';
+import { Canvas as FabricCanvas, Image as FabricImage, filters } from 'fabric';
 
 interface CanvasProps {
   product: Product;
@@ -100,7 +100,7 @@ export default function Canvas({ product, color }: CanvasProps) {
     
     // Create a color overlay effect using a different approach
     bgImage.filters = [
-      new fabric.filters.BlendColor({
+      new filters.BlendColor({
         color: color,
         mode: 'multiply',
         alpha: 0.5
